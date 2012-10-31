@@ -134,7 +134,10 @@
   // UI
   ////////////////
   function initUI() {
+    // left-click
     $("#game").on("click", "td", gameCellClickHandler);
+    // right-click
+    $("#game").on("contextmenu", "td", gameCellClickHandler);
 
     syncUI();
   }
@@ -171,13 +174,23 @@
     return numberClasses[number];
   }
 
-  function gameCellClickHandler() {
+  function gameCellClickHandler(evt) {
+    evt.preventDefault();
+    console.log(evt);
+
     var row = $(this).parent().parent().children().index(this.parentNode);
     var col = $(this).parent().children().index(this);
 
-    if (!gameGridModel.isRevealed(row, col)) {
-      gameGridModel.setRevealed(row, col, true);
-      syncUI();
+    if (evt.button == 0) {
+      // left click
+      if (!gameGridModel.isRevealed(row, col)) {
+        gameGridModel.setRevealed(row, col, true);
+        syncUI();
+      }
+    } else {
+      // right click
+      // TODO: Implement right click
+      return;
     }
   }
 
