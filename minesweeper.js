@@ -1,5 +1,5 @@
 (function () {
-  var NUM_ROWS = 10, NUM_COLS = 10, NUM_BOMBS = 25, BOMB_STRING = "B";
+  var NUM_ROWS = 10, NUM_COLS = 10, NUM_BOMBS = 10, BOMB_STRING = "B";
 
   var gameGridModel = null, solverGridModel = null;
 
@@ -30,6 +30,18 @@
       self.data[row][col] = val;
     };
 
+    self.getNeighbors = function(r, c) {
+      var neighborValues = [], numRows = self.data.length, numCols = self.data[0].length;
+      for (var row = r - 1; row <= r + 1; row++) {
+        for (var col = c - 1; col <= c + 1; col++) {
+          if (row == r && col == c) continue;
+          if (row < 0 || row >= numRows || col < 0 || col >= numCols) continue;
+          neighborValues.push(self.get(row, col));
+        }
+      }
+      return neighborValues;
+    }
+
     self.init = function() {
       // Place bombs randomly
       var coords = [], numRows = self.data.length, numCols = self.data[0].length;
@@ -42,6 +54,17 @@
       for (var bomb = 0; bomb < self.numBombs; bomb++) {
         var bombCoord = coords[bomb];
         self.set(bombCoord[0], bombCoord[1], BOMB_STRING);
+      }
+
+      // Label bomb neighbors with the number of bombs nearby.
+      for (var row = 0; row < numRows; row++) {
+        for (var col = 0; col < numCols; col++) {
+          if (self.get(row, col) == BOMB_STRING) continue;
+          var neighbors = self.getNeighbors(row, col);
+          var numBombsNearby = _.filter(neighbors, function(value) { return value == BOMB_STRING; }).length;
+          var value = (numBombsNearby > 0 ? numBombsNearby : "");
+          self.set(row, col, value);
+        }
       }
     };
 
@@ -82,12 +105,22 @@
     for (var row = 0; row < NUM_ROWS; row++) {
       ret += "<tr>";
       for (var col = 0; col < NUM_COLS; col++) {
-        ret += "<td>" + dataModel.get(row, col) + "</td>";
+        var value = dataModel.get(row, col);
+        ret += "<td class=" + getClassForValue(value) + ">" + value + "</td>";
       }
       ret += "</tr>";
     }
     ret += "</table>";
     $container.html(ret);
+  }
+
+  function getClassForValue(value) {
+    if (value == BOMB_STRING) {
+      return "bomb";
+    }
+    var number = parseInt(value, 10);
+    var numberClasses = ["", "one", "two", "three", "four", "five", "six", "seven", "eight"];
+    return numberClasses[number];
   }
 
   function gameCellClickHandler() {
