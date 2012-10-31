@@ -20,27 +20,37 @@
     var self = this;
 
     self.numBombs = numBombs;
-    self.data = newDataGrid(numRows, numCols, "");
-    self.dataRevealed = newDataGrid(numRows, numCols, false);
+    self.bombData = newDataGrid(numRows, numCols, "");
+    self.revealData = newDataGrid(numRows, numCols, false);
+    self.flagData = newDataGrid(numRows, numCols, false);
 
     self.get = function(row, col) {
-      return self.data[row][col];
+      return self.bombData[row][col];
     };
 
     self.set = function(row, col, val) {
-      self.data[row][col] = val;
+      self.bombData[row][col] = val;
     };
 
     self.isRevealed = function(row, col) {
-      return self.dataRevealed[row][col];
+      return self.revealData[row][col];
     };
 
     self.setRevealed = function(row, col, val) {
-      if (val == true && self.data[row][col] == "") {
+      if (val == true && self.bombData[row][col] == "") {
         // Reveal all neighboring empty cells
         self.revealAllEmptyCells(row, col);
       }
-      self.dataRevealed[row][col] = val;
+      self.revealData[row][col] = val;
+    }
+
+    self.toggleFlag = function(row, col) {
+      self.flagData[row][col] = !self.flagData[row][col];
+    }
+
+    self.isFlagged = function(row, col) {
+      if (self.revealData[row][col]) return false;
+      return self.flagData[row][col];
     }
 
     self.revealAllEmptyCells = function(startRow, startCol) {
@@ -49,8 +59,8 @@
       while (coordsQueue.length > 0) {
         var coord = coordsQueue.shift();
         var row = coord[0], col = coord[1];
-        if (!self.dataRevealed[row][col]) {
-          self.dataRevealed[row][col] = true;
+        if (!self.revealData[row][col]) {
+          self.revealData[row][col] = true;
           if (self.get(row, col) == "") {
             var neighborCoords = self.getNeighborCoords(row, col);
             for (var i = 0; i < neighborCoords.length; i++) {
@@ -62,7 +72,7 @@
     }
 
     self.getNeighborCoords = function(r, c) {
-      var neighborCoords = [], numRows = self.data.length, numCols = self.data[0].length;
+      var neighborCoords = [], numRows = self.bombData.length, numCols = self.bombData[0].length;
       for (var row = r - 1; row <= r + 1; row++) {
         for (var col = c - 1; col <= c + 1; col++) {
           if (row == r && col == c) continue;
@@ -84,7 +94,7 @@
 
     self.init = function() {
       // Place bombs randomly
-      var coords = [], numRows = self.data.length, numCols = self.data[0].length;
+      var coords = [], numRows = self.bombData.length, numCols = self.bombData[0].length;
       for (var row = 0; row < numRows; row++) {
         for (var col = 0; col < numCols; col++) {
           coords.push([row, col]);
@@ -155,6 +165,8 @@
         if (dataModel.isRevealed(row, col)) {
           var value = dataModel.get(row, col);
           ret += "<td class=\"" + getClassForValue(value) + " revealed\">" + value + "</td>";
+        } else if (dataModel.isFlagged(row, col)) {
+          ret += "<td>f</td>";
         } else {
           ret += "<td></td>";
         }
@@ -185,13 +197,15 @@
       // left click
       if (!gameGridModel.isRevealed(row, col)) {
         gameGridModel.setRevealed(row, col, true);
-        syncUI();
       }
     } else {
       // right click
-      // TODO: Implement right click
-      return;
+      if (!gameGridModel.isRevealed(row, col)) {
+        gameGridModel.toggleFlag(row, col);
+      }
     }
+
+    syncUI();
   }
 
 })();
