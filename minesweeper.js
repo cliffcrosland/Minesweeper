@@ -71,6 +71,33 @@
       }
     }
 
+    self.flagsEqualBombs = function () {
+      var matchCount = 0, flagCount = 0, numRows = self.bombData.length, numCols = self.bombData[0].length;
+      for (var row = 0; row < numRows; row++) {
+        for (var col = 0; col < numCols; col++) {
+          if (self.flagData[row][col]) {
+            flagCount++;
+            if (self.bombData[row][col] == BOMB_STRING) {
+              matchCount++;
+            }
+          }
+        }
+      }
+      return matchCount == self.numBombs && flagCount == self.numBombs;
+    }
+
+    self.allNonBombsRevealed = function () {
+      var revealCount = 0, numRows = self.bombData.length, numCols = self.bombData[0].length;
+      for (var row = 0; row < numRows; row++) {
+        for (var col = 0; col < numCols; col++) {
+          if (self.revealData[row][col]) {
+            revealCount++;
+          }
+        }
+      }
+      return revealCount + self.numBombs == numRows * numCols;
+    }
+
     self.getNeighborCoords = function(r, c) {
       var neighborCoords = [], numRows = self.bombData.length, numCols = self.bombData[0].length;
       for (var row = r - 1; row <= r + 1; row++) {
@@ -152,6 +179,13 @@
     syncUI();
   }
 
+  function gameOver(result) {
+    $("#game").off("click");
+    $("#game").off("contextmenu");
+    $("#game").on("contextmenu", "td", function() { return false; });
+    $("#game_result").html("You " + result);
+  }
+
   function syncUI() {
     createTableLayout($("#game"), gameGridModel);
     // createTableLayout($("#solver"), solverGridModel);
@@ -164,7 +198,7 @@
       for (var col = 0; col < NUM_COLS; col++) {
         if (dataModel.isRevealed(row, col)) {
           var value = dataModel.get(row, col);
-          ret += "<td class=\"" + getClassForValue(value) + " revealed\">" + value + "</td>";
+          ret += "<td class=\"revealed " + getClassForValue(value) + "\">" + value + "</td>";
         } else if (dataModel.isFlagged(row, col)) {
           ret += "<td>f</td>";
         } else {
@@ -195,6 +229,9 @@
 
     if (evt.button == 0) {
       // left click
+      if (gameGridModel.get(row, col) == BOMB_STRING) {
+        gameOver("lose");
+      }
       if (!gameGridModel.isRevealed(row, col)) {
         gameGridModel.setRevealed(row, col, true);
       }
@@ -203,6 +240,10 @@
       if (!gameGridModel.isRevealed(row, col)) {
         gameGridModel.toggleFlag(row, col);
       }
+    }
+
+    if (gameGridModel.flagsEqualBombs() && gameGridModel.allNonBombsRevealed()) {
+      gameOver("win");
     }
 
     syncUI();

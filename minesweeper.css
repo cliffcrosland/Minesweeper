@@ -25,7 +25,12 @@ body {
   cursor: pointer;
 }
 
-.bomb { background-color: #ff9d00 !important; color: black; }
+#game_result {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.bomb { color: red; font-size: 26px; }
 .revealed { background-color: #f7f7f7 !important; }
 .one { color: #0000ff; }
 .two { color: #009933; }
