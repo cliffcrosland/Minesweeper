@@ -20,7 +20,8 @@
     var self = this;
 
     self.numBombs = numBombs;
-    self.data = emptyDataGrid(numRows, numCols);
+    self.data = newDataGrid(numRows, numCols, "");
+    self.dataRevealed = newDataGrid(numRows, numCols, false);
 
     self.get = function(row, col) {
       return self.data[row][col];
@@ -30,17 +31,56 @@
       self.data[row][col] = val;
     };
 
-    self.getNeighbors = function(r, c) {
-      var neighborValues = [], numRows = self.data.length, numCols = self.data[0].length;
+    self.isRevealed = function(row, col) {
+      return self.dataRevealed[row][col];
+    };
+
+    self.setRevealed = function(row, col, val) {
+      if (val == true && self.data[row][col] == "") {
+        // Reveal all neighboring empty cells
+        self.revealAllEmptyCells(row, col);
+      }
+      self.dataRevealed[row][col] = val;
+    }
+
+    self.revealAllEmptyCells = function(startRow, startCol) {
+      var startCoord = [startRow, startCol];
+      var coordsQueue = [startCoord];
+      while (coordsQueue.length > 0) {
+        var coord = coordsQueue.shift();
+        var row = coord[0], col = coord[1];
+        if (!self.dataRevealed[row][col]) {
+          self.dataRevealed[row][col] = true;
+          if (self.get(row, col) == "") {
+            var neighborCoords = self.getNeighborCoords(row, col);
+            for (var i = 0; i < neighborCoords.length; i++) {
+              coordsQueue.push(neighborCoords[i]);
+            }
+          }
+        }
+      }
+    }
+
+    self.getNeighborCoords = function(r, c) {
+      var neighborCoords = [], numRows = self.data.length, numCols = self.data[0].length;
       for (var row = r - 1; row <= r + 1; row++) {
         for (var col = c - 1; col <= c + 1; col++) {
           if (row == r && col == c) continue;
           if (row < 0 || row >= numRows || col < 0 || col >= numCols) continue;
-          neighborValues.push(self.get(row, col));
+          neighborCoords.push([row, col]);
         }
       }
-      return neighborValues;
+      return neighborCoords;
     }
+
+    self.getNeighborValues = function(r, c) {
+      var neighborCoords = self.getNeighborCoords(r, c), neighborValues = [];
+      for (var i = 0; i < neighborCoords.length; i++) {
+        var coord = neighborCoords[i];
+        neighborValues.push(self.get(coord[0], coord[1]));
+      }
+      return neighborValues;
+    };
 
     self.init = function() {
       // Place bombs randomly
@@ -60,7 +100,7 @@
       for (var row = 0; row < numRows; row++) {
         for (var col = 0; col < numCols; col++) {
           if (self.get(row, col) == BOMB_STRING) continue;
-          var neighbors = self.getNeighbors(row, col);
+          var neighbors = self.getNeighborValues(row, col);
           var numBombsNearby = _.filter(neighbors, function(value) { return value == BOMB_STRING; }).length;
           var value = (numBombsNearby > 0 ? numBombsNearby : "");
           self.set(row, col, value);
@@ -79,12 +119,12 @@
     }
   }
 
-  function emptyDataGrid(numRows, numCols) {
+  function newDataGrid(numRows, numCols, initElemValue) {
     var ret = new Array(numRows);
     for (var row = 0; row < numRows; row++) {
       ret[row] = new Array(numCols);
       for (var col = 0; col < numCols; col++) {
-        ret[row][col] = "";
+        ret[row][col] = initElemValue;
       }
     }
     return ret;
@@ -94,10 +134,14 @@
   // UI
   ////////////////
   function initUI() {
-    createTableLayout($("#game"), gameGridModel);
-    createTableLayout($("#solver"), solverGridModel);
-
     $("#game").on("click", "td", gameCellClickHandler);
+
+    syncUI();
+  }
+
+  function syncUI() {
+    createTableLayout($("#game"), gameGridModel);
+    // createTableLayout($("#solver"), solverGridModel);
   }
 
   function createTableLayout($container, dataModel) {
@@ -105,8 +149,12 @@
     for (var row = 0; row < NUM_ROWS; row++) {
       ret += "<tr>";
       for (var col = 0; col < NUM_COLS; col++) {
-        var value = dataModel.get(row, col);
-        ret += "<td class=" + getClassForValue(value) + ">" + value + "</td>";
+        if (dataModel.isRevealed(row, col)) {
+          var value = dataModel.get(row, col);
+          ret += "<td class=\"" + getClassForValue(value) + " revealed\">" + value + "</td>";
+        } else {
+          ret += "<td></td>";
+        }
       }
       ret += "</tr>";
     }
@@ -126,6 +174,11 @@
   function gameCellClickHandler() {
     var row = $(this).parent().parent().children().index(this.parentNode);
     var col = $(this).parent().children().index(this);
+
+    if (!gameGridModel.isRevealed(row, col)) {
+      gameGridModel.setRevealed(row, col, true);
+      syncUI();
+    }
   }
 
 })();

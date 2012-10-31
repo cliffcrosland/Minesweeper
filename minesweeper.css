@@ -18,14 +18,15 @@ body {
   height: 40px;
   border: solid 1px;
   text-align: center;
+  background-color: #d0d0d0;
 }
 
 #game td:hover {
-  background-color: #ffff00;
   cursor: pointer;
 }
 
-.bomb { background-color: #ff9d00; color: black; }
+.bomb { background-color: #ff9d00 !important; color: black; }
+.revealed { background-color: #f7f7f7 !important; }
 .one { color: #0000ff; }
 .two { color: #009933; }
 .three { color: #cc0000; }
