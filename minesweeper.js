@@ -184,6 +184,9 @@
     $("#game").off("contextmenu");
     $("#game").on("contextmenu", "td", function() { return false; });
     $("#game_result").html("You " + result);
+    $("#game_result").animate({
+      "font-size" : "26px"
+      }, 500);
   }
 
   function syncUI() {

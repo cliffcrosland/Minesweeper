@@ -28,6 +28,7 @@ body {
 #game_result {
   margin-top: 20px;
   text-align: center;
+  font-size: 8px;
 }
 
 .bomb { color: red; font-size: 26px; }
