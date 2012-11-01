@@ -7,14 +7,18 @@
 
   function init() {
     gameGridModel = new GameGridModel(NUM_ROWS, NUM_COLS, NUM_BOMBS);
-    solverGridModel = new SolverGridModel(NUM_ROWS, NUM_COLS, gameGridModel);
+    solverGridModel = new SolverGridModel(NUM_ROWS, NUM_COLS, NUM_BOMBS, gameGridModel);
 
     initUI();
   }
 
-  ////////////////
-  // Model
-  ////////////////
+  ////////////////////////////
+  // Models
+  ////////////////////////////
+
+  /////////////////
+  // GameGridModel
+  /////////////////
 
   function GameGridModel(numRows, numCols, numBombs) {
     var self = this;
@@ -148,14 +152,108 @@
     self.init();
   }
 
-  function SolverGridModel(numRows, numCols, gameGridModel) {
+  ////////////////////
+  // SolverGridModel
+  ////////////////////
+  function SolverGridModel(numRows, numCols, numBombs, gameGridModel) {
     var self = this;
-    // TODO: implement
+
+    self.numRows = numRows;
+    self.numCols = numCols;
+    self.numBombs = numBombs;
+    self.gameGridModel = gameGridModel;
+
+    self.revealed = newDataGrid(numRows, numCols, false);
+    self.bombDistribution = newDataGrid(numRows, numCols, numBombs / (numRows * numCols));
+
     self.get = function(row, col) {
-      return "hi";
+      return self.bombDistribution[row][col];
+    };
+
+    self.update = function() {
+      for (var row = 0; row < self.numRows; row++) {
+        for (var col = 0; col < self.numCols; col++) {
+          if (self.revealed[row][col] != self.gameGridModel.isRevealed(row, col)) {
+            self.revealed[row][col] = self.gameGridModel.isRevealed(row, col);
+            self.updateBombDistribution(row, col);
+          }
+        }
+      }
+    };
+
+    self.updateBombDistribution = function(measurementRow, measurementCol) {
+      var posteriorDistribution = newDataGrid(self.numRows, self.numCols, 0)
+      , measurement = { row : measurementRow, col : measurementCol, value : self.gameGridModel.get(measurementRow, measurementCol) };
+      for (var row = 0; row < self.numRows; row++) {
+        for (var col = 0; col < self.numCols; col++) {
+          var prior = self.bombDistribution[row][col]
+          , measurementProb = self.getMeasurementProbability(measurement, row, col);
+          // numerator of P(B_i | M) = P(M | B_i)  *  P(B_i)
+          //              posterior  = measurement *  prior
+          // B_i = bomb at this cell
+          // M = prob of measurement
+          posteriorDistribution[row][col] = measurementProb * prior;
+        }
+      }
+
+      // Normalize
+      // P(B_i | M) = numerator / P(M)
+      var sum = 0;
+      for (var row = 0; row < self.numRows; row++) {
+        for (var col = 0; col < self.numCols; col++) {
+          sum += posteriorDistribution[row][col];
+        }
+      }
+      sum /= self.numBombs;
+      for (var row = 0; row < self.numRows; row++) {
+        for (var col = 0; col < self.numCols; col++) {
+          posteriorDistribution[row][col] /= sum;
+        }
+      }
+
+      // Write into bomb distribution
+      for (var row = 0; row < self.numRows; row++) {
+        for (var col = 0; col < self.numCols; col++) { 
+          self.bombDistribution[row][col] = posteriorDistribution[row][col];
+        }
+      }
+    };
+
+    // Get P(M | B_i).  That is, the probability of getting measurement M if there were a bomb at (row, col).
+    self.getMeasurementProbability = function(measurement, row, col) {
+      var neighborCoords = self.getNeighborCoords(row, col);
+      var measurementCoord = [measurement.row, measurement.col];
+      if (!_.find(neighborCoords, function(coord) { return coord[0] == measurementCoord[0] && coord[1] == measurementCoord[1]; })) {
+        return 1;
+      }
+      return 1;
     }
+
+    self.getNeighborCoords = function(r, c) {
+      var neighborCoords = [], numRows = self.numRows, numCols = self.numCols;
+      for (var row = r - 1; row <= r + 1; row++) {
+        for (var col = c - 1; col <= c + 1; col++) {
+          if (row == r && col == c) continue;
+          if (row < 0 || row >= numRows || col < 0 || col >= numCols) continue;
+          neighborCoords.push([row, col]);
+        }
+      }
+      return neighborCoords;
+    }
+
+    self.init = function() {
+      // Initialize knowledge of which cells are revealed
+      for (var row = 0; row < self.numRows; row++) {
+        for (var col = 0; col < self.numCols; col++) {
+          self.revealed[row][col] = self.gameGridModel.isRevealed(row, col);
+        }
+      }
+    };
+
+    self.init();
   }
 
+  // Create new data grid with the supplied dimensions, each element having the initial elem value.
   function newDataGrid(numRows, numCols, initElemValue) {
     var ret = new Array(numRows);
     for (var row = 0; row < numRows; row++) {
@@ -167,9 +265,9 @@
     return ret;
   }
 
-  ////////////////
+  //////////////////////////////////////
   // UI
-  ////////////////
+  //////////////////////////////////////
   function initUI() {
     // left-click
     $("#game").on("click", "td", gameCellClickHandler);
@@ -182,7 +280,9 @@
   function gameOver(result) {
     $("#game").off("click");
     $("#game").off("contextmenu");
+    // swallow right-click
     $("#game").on("contextmenu", "td", function() { return false; });
+
     $("#game_result").html("You " + result);
     $("#game_result").animate({
       "font-size" : "26px"
@@ -190,28 +290,40 @@
   }
 
   function syncUI() {
-    createTableLayout($("#game"), gameGridModel);
-    // createTableLayout($("#solver"), solverGridModel);
+    syncGridModelToUI(gameGridModel, $("#game"), gameGridCellRenderer);
+    syncGridModelToUI(solverGridModel, $("#solver"), solverGridCellRenderer);
   }
 
-  function createTableLayout($container, dataModel) {
+  function syncGridModelToUI(dataModel, $container, cellRenderer) {
     var ret = "<table>";
     for (var row = 0; row < NUM_ROWS; row++) {
       ret += "<tr>";
       for (var col = 0; col < NUM_COLS; col++) {
-        if (dataModel.isRevealed(row, col)) {
-          var value = dataModel.get(row, col);
-          ret += "<td class=\"revealed " + getClassForValue(value) + "\">" + value + "</td>";
-        } else if (dataModel.isFlagged(row, col)) {
-          ret += "<td>f</td>";
-        } else {
-          ret += "<td></td>";
-        }
+        ret += cellRenderer(row, col, dataModel);
       }
       ret += "</tr>";
     }
     ret += "</table>";
     $container.html(ret);
+  }
+
+  function gameGridCellRenderer(row, col, dataModel) {
+    if (dataModel.isRevealed(row, col)) {
+      var value = dataModel.get(row, col);
+      return "<td class=\"revealed " + getClassForValue(value) + "\">" + value + "</td>";
+    } else if (dataModel.isFlagged(row, col)) {
+      return "<td>f</td>";
+    } else {
+      return "<td></td>";
+    }
+  }
+
+  function solverGridCellRenderer(row, col, dataModel) {
+    return "<td>" + truncate(dataModel.get(row, col), 5) + "</td>";
+  }
+
+  function truncate(input, length) {
+    return input.toString().substring(0, length);
   }
 
   function getClassForValue(value) {
@@ -249,6 +361,7 @@
       gameOver("win");
     }
 
+    solverGridModel.update();
     syncUI();
   }
 
