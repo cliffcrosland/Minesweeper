@@ -48,6 +48,15 @@
       self.revealData[row][col] = val;
     }
 
+    self.revealAll = function() {
+      var numRows = self.bombData.length, numCols = self.bombData[0].length;
+      for (var row = 0; row < numRows; row++) {
+        for (var col = 0; col < numCols; col++) {
+          self.revealData[row][col] = true;
+        }
+      }
+    }
+
     self.toggleFlag = function(row, col) {
       self.flagData[row][col] = !self.flagData[row][col];
     }
@@ -170,7 +179,17 @@
       return self.bombDistribution[row][col];
     };
 
+    self.revealAll = function(row, col) {
+      self.shouldRevealAll = true;
+      for (var row = 0; row < self.numRows; row++) {
+        for (var col = 0; col < self.numCols; col++) {
+          self.bombDistribution[row][col] = (self.gameGridModel.get(row, col) == BOMB_STRING ? 1.0 : 0.0);
+        }
+      }
+    };
+
     self.update = function() {
+      if (self.shouldRevealAll) return;
       for (var row = 0; row < self.numRows; row++) {
         for (var col = 0; col < self.numCols; col++) {
           if (self.revealed[row][col] != self.gameGridModel.isRevealed(row, col)) {
@@ -208,6 +227,9 @@
       for (var row = 0; row < self.numRows; row++) {
         for (var col = 0; col < self.numCols; col++) {
           posteriorDistribution[row][col] /= sum;
+          if (posteriorDistribution[row][col] > 1) {
+            posteriorDistribution[row][col] = 1; // The algorithm doesn't understand that a cell may only have one bomb.
+          }
         }
       }
 
@@ -225,7 +247,7 @@
       var measurementCoord = [measurement.row, measurement.col];
       var coordIsRowCol = function(coord) { return coord[0] == row && coord[1] == col; };
       // If the coord is the measurement, then there's no way there's a bomb here.
-      if (measurement.row == row && measurement.col == col) {
+      if (measurement.row == row && measurement.col == col) { 
         return 0;
       }
       // If the coord is not a neighbor of the measurement, return 1.
@@ -331,6 +353,10 @@
     $("#game_result").animate({
       "font-size" : "26px"
       }, 500);
+    if (result == "lose") {
+      gameGridModel.revealAll();
+      solverGridModel.revealAll();
+    }
   }
 
   function syncUI() {
@@ -363,7 +389,10 @@
   }
 
   function solverGridCellRenderer(row, col, dataModel) {
-    return "<td>" + truncate(dataModel.get(row, col), 5) + "</td>";
+    var value = truncate(dataModel.get(row, col), 5);
+    var red = truncate(parseInt(255 * value, 10), 4);
+    var green = truncate(parseInt(255 * (1 - value), 10), 4);
+    return "<td style=\"background-color: rgb(" + red + ", "+ green + ", 0);\">" + value + "</td>";
   }
 
   function truncate(input, length) {
@@ -387,11 +416,11 @@
 
     if (evt.button == 0) {
       // left click
-      if (gameGridModel.get(row, col) == BOMB_STRING) {
-        gameOver("lose");
-      }
       if (!gameGridModel.isRevealed(row, col)) {
         gameGridModel.setRevealed(row, col, true);
+      }
+      if (gameGridModel.get(row, col) == BOMB_STRING) {
+        gameOver("lose");
       }
     } else {
       // right click
