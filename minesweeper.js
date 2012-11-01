@@ -186,8 +186,8 @@
       , measurement = { row : measurementRow, col : measurementCol, value : self.gameGridModel.get(measurementRow, measurementCol) };
       for (var row = 0; row < self.numRows; row++) {
         for (var col = 0; col < self.numCols; col++) {
-          var prior = self.bombDistribution[row][col]
-          , measurementProb = self.getMeasurementProbability(measurement, row, col);
+          var prior = self.bombDistribution[row][col];
+          var measurementProb = self.getMeasurementProbability(measurement, row, col);
           // numerator of P(B_i | M) = P(M | B_i)  *  P(B_i)
           //              posterior  = measurement *  prior
           // B_i = bomb at this cell
@@ -204,7 +204,7 @@
           sum += posteriorDistribution[row][col];
         }
       }
-      sum /= self.numBombs;
+      sum /= self.numBombs; // want a distribution of bombs, not a probability distribution.
       for (var row = 0; row < self.numRows; row++) {
         for (var col = 0; col < self.numCols; col++) {
           posteriorDistribution[row][col] /= sum;
@@ -221,13 +221,57 @@
 
     // Get P(M | B_i).  That is, the probability of getting measurement M if there were a bomb at (row, col).
     self.getMeasurementProbability = function(measurement, row, col) {
-      var neighborCoords = self.getNeighborCoords(row, col);
+      var neighborCoords = self.getNeighborCoords(measurement.row, measurement.col);
       var measurementCoord = [measurement.row, measurement.col];
-      if (!_.find(neighborCoords, function(coord) { return coord[0] == measurementCoord[0] && coord[1] == measurementCoord[1]; })) {
-        return 1;
+      var coordIsRowCol = function(coord) { return coord[0] == row && coord[1] == col; };
+      // If the coord is the measurement, then there's no way there's a bomb here.
+      if (measurement.row == row && measurement.col == col) {
+        return 0;
       }
-      return 1;
-    }
+      // If the coord is not a neighbor of the measurement, return 1.
+      if (!_.find(neighborCoords, coordIsRowCol)) {
+        var prob = self.getProbabilityOfNumberOfBombsOnCoords(measurement.value, neighborCoords);
+        // ???
+        // TODO: Somehow, account for the fact that a bomb on this coord affects the probability of the measurement.
+        return prob;
+      }
+      // Exclude the coord in question from the neighbors of the measurement.
+      neighborCoords = _.reject(neighborCoords, coordIsRowCol);
+      // P(measurement | bomb at row, col) = P(there are exactly (measurement - 1) bombs on all of the neighbors)
+      var prob = self.getProbabilityOfNumberOfBombsOnCoords(measurement.value - 1, neighborCoords);
+      return prob;
+    };
+
+    self.getProbabilityOfNumberOfBombsOnCoords = function(numBombs, coords) {
+      var groupings = [];
+      var makeGroupings = function recurse(numberToChoose, chosen, pool) {
+        if (chosen.length == numberToChoose) {
+          groupings.push([chosen.slice(0, chosen.length), pool.slice(0, pool.length)]);
+        } else {
+          for (var i = 0; i < pool.length; i++) {
+            var newChosen = chosen.slice(0, chosen.length);
+            newChosen.push(pool[i]);
+            var newPool = pool.slice(0, pool.length);
+            newPool.splice(i, 1);
+            recurse(numberToChoose, newChosen, newPool);
+          }
+        }
+      };
+      makeGroupings(numBombs, [], coords);
+      var sum = 0;
+      for (var i = 0; i < groupings.length; i++) {
+        var chosenForBombs = groupings[i][0];
+        var chosenForEmpty = groupings[i][1];
+        var probForBombs = _.reduce(chosenForBombs, function(memo, coord) {
+          return memo * self.bombDistribution[coord[0]][coord[1]];
+        }, 1);
+        var probForEmpty = _.reduce(chosenForEmpty, function(memo, coord) {
+          return memo * (1 - self.bombDistribution[coord[0]][coord[1]]);
+        }, 1);
+        sum += probForBombs * probForEmpty;
+      }
+      return sum;
+    };
 
     self.getNeighborCoords = function(r, c) {
       var neighborCoords = [], numRows = self.numRows, numCols = self.numCols;
@@ -337,7 +381,6 @@
 
   function gameCellClickHandler(evt) {
     evt.preventDefault();
-    console.log(evt);
 
     var row = $(this).parent().parent().children().index(this.parentNode);
     var col = $(this).parent().children().index(this);
