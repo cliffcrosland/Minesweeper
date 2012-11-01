@@ -180,16 +180,16 @@
     };
 
     self.revealAll = function(row, col) {
-      self.shouldRevealAll = true;
       for (var row = 0; row < self.numRows; row++) {
         for (var col = 0; col < self.numCols; col++) {
           self.bombDistribution[row][col] = (self.gameGridModel.get(row, col) == BOMB_STRING ? 1.0 : 0.0);
         }
       }
+      self.allIsRevealed = true;
     };
 
     self.update = function() {
-      if (self.shouldRevealAll) return;
+      if (self.allIsRevealed) return;
       for (var row = 0; row < self.numRows; row++) {
         for (var col = 0; col < self.numCols; col++) {
           if (self.revealed[row][col] != self.gameGridModel.isRevealed(row, col)) {
