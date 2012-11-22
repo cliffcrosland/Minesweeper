@@ -179,7 +179,7 @@
       return self.bombDistribution[row][col];
     };
 
-    self.revealAll = function(row, col) {
+    self.revealAll = function() {
       for (var row = 0; row < self.numRows; row++) {
         for (var col = 0; col < self.numCols; col++) {
           self.bombDistribution[row][col] = (self.gameGridModel.get(row, col) == BOMB_STRING ? 1.0 : 0.0);
