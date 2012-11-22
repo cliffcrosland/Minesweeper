@@ -8,14 +8,13 @@ GridModels =
   solver : null
 
 
-
-$(init)
-
 init = ->
   GridModels.game = new GameGridModel(NUM_ROWS, NUM_COLS, NUM_BOMBS)
   GridModels.solver = new SolverGridModel(NUM_ROWS, NUM_COLS, NUM_BOMBS, GridModels.game)
 
   initUI()
+
+$(init)
 
 ###########################
 ## Models
@@ -32,10 +31,10 @@ class GameGridModel
     @flagData = Utils.newDataGrid(@numRows, @numCols, false)
 
     # Place bombs randomly
-    allCoords = []
+    coords = []
     for row in [0...@numRows]
       for col in [0...@numCols]
-        allCoords.push([row, col])
+        coords.push([row, col])
     coords = _.shuffle(coords)
     for bomb in [0...@numBombs]
       bombCoord = coords[bomb]
@@ -123,7 +122,7 @@ class SolverGridModel
   constructor: (@numRows, @numCols, @numBombs, @gameGridModel) ->
     @allIsRevealed = false
     @revealed = Utils.newDataGrid(@numRows, @numCols, false)
-    @bombDistribution = utils.newDataGrid(@numRows, @numCols, @numBombs / (@numRows * @numCols))
+    @bombDistribution = Utils.newDataGrid(@numRows, @numCols, @numBombs / (@numRows * @numCols))
     for row in [0...@numRows]
       for col in [0...@numCols]
         @revealed[row][col] = @gameGridModel.isRevealed(row, col)
@@ -147,10 +146,11 @@ class SolverGridModel
 
   updateBombDistribution: (measurementRow, measurementCol) ->
     posteriorDistribution = Utils.newDataGrid(@numRows, @numCols, 0)
+    value = @gameGridModel.get(measurementRow, measurementCol)
     measurement = 
       row : measurementRow
       col : measurementCol
-      value : @gameGridModel.get(measurementRow, measurementCol)
+      value : if value == "" then 0 else parseInt(value, 10)
     for row in [0...@numRows]
       for col in [0...@numCols]
         prior = @bombDistribution[row][col]
@@ -216,11 +216,12 @@ class SolverGridModel
     for grouping in groupings
       chosenForBombs = grouping[0]
       chosenForEmpty = grouping[1]
+      bombDistribution = @bombDistribution
       probForBombs = _.reduce(chosenForBombs, ((memo, coord) ->
-        return memo * @bombDistribution[coord[0]][coord[1]]
+        return memo * bombDistribution[coord[0]][coord[1]]
       ), 1)
       probForEmpty = _.reduce(chosenForEmpty, ((memo, coord) ->
-        return memo * (1 - @bombDistribution[coord[0]][coord[1]])
+        return memo * (1 - bombDistribution[coord[0]][coord[1]])
       ), 1)
       sum += probForBombs * probForEmpty
     return sum
@@ -247,22 +248,8 @@ gameOver = (result) ->
     "font-size" : "26px"
   }, 500)
   if result == "lose"
-    gameGridModel.revealAll()
-    solverGridModel.revealAll()
-
-syncUI = ->
-  syncGridModelToUI(GridModels.game, $("#game"), gameGridCellRenderer)
-  syncGridModelToUI(GridModels.solver, $("#solver"), solverGridCellRenderer)
-
-syncGridModelToUI = (dateModel, $container, cellRenderer) ->
-  ret = "<table>"
-  for row in [0...NUM_ROWS]
-    ret += "<tr>"
-    for col in [0...NUM_COLS]
-      ret += cellRenderer(row, col, dataModel)
-    ret += "</tr>"
-  ret += "</table>"
-  $container.html(table)
+    GridModels.game.revealAll()
+    GridModels.solver.revealAll()
 
 gameGridCellRenderer = (row, col, dataModel) ->
   if dataModel.isRevealed(row, col)
@@ -279,6 +266,20 @@ solverGridCellRenderer = (row, col, dataModel) ->
   green = Utils.truncate(parseInt(255 * (1 - value), 10), 4)
   return "<td style=\"background-color: rgb(#{red},#{green},0);\">#{value}</td>"
 
+syncUI = ->
+  syncGridModelToUI(GridModels.game, $("#game"), gameGridCellRenderer)
+  syncGridModelToUI(GridModels.solver, $("#solver"), solverGridCellRenderer)
+
+syncGridModelToUI = (dataModel, $container, cellRenderer) ->
+  ret = "<table>"
+  for row in [0...NUM_ROWS]
+    ret += "<tr>"
+    for col in [0...NUM_COLS]
+      ret += cellRenderer(row, col, dataModel)
+    ret += "</tr>"
+  ret += "</table>"
+  $container.html(ret)
+
 gameCellClickHandler = (evt) ->
     evt.preventDefault()
 
@@ -287,19 +288,19 @@ gameCellClickHandler = (evt) ->
 
     if evt.button == 0
       # left click
-      if !gameGridModel.isRevealed(row, col)
-        gameGridModel.setRevealed(row, col, true)
-      if gameGridModel.get(row, col) == BOMB_STRING
+      if !GridModels.game.isRevealed(row, col)
+        GridModels.game.setRevealed(row, col, true)
+      if GridModels.game.get(row, col) == BOMB_STRING
         gameOver("lose")
     else
       # right click
-      if !gameGridModel.isRevealed(row, col)
-        gameGridModel.toggleFlag(row, col)
+      if !GridModels.game.isRevealed(row, col)
+        GridModels.game.toggleFlag(row, col)
 
-    if gameGridModel.flagsEqualBombs() && gameGridModel.allNonBombsRevealed()
+    if GridModels.game.flagsEqualBombs() && GridModels.game.allNonBombsRevealed()
       gameOver("win")
 
-    solverGridModel.update()
+    GridModels.solver.update()
     syncUI()
 
 ###################
